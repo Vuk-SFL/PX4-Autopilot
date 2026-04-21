@@ -95,7 +95,8 @@ Zenoh_Config::~Zenoh_Config()
 	}
 }
 
-int Zenoh_Config::AddPubSub(char *topic, char *datatype, int instance_no, const char *filename)
+int Zenoh_Config::AddPubSub(char *topic, char *datatype, int instance_no, const char *filename,
+			    const char *options_str)
 {
 	{
 		char f_topic[TOPIC_INFO_SIZE];
@@ -120,7 +121,12 @@ int Zenoh_Config::AddPubSub(char *topic, char *datatype, int instance_no, const 
 			FILE *fp = fopen(filename, "a");
 
 			if (fp) {
-				fprintf(fp, "%s;%s;%d\n", topic, datatype, instance_no);
+				if (options_str && options_str[0] != '\0') {
+					fprintf(fp, "%s;%s;%d;%s\n", topic, datatype, instance_no, options_str);
+
+				} else {
+					fprintf(fp, "%s;%s;%d\n", topic, datatype, instance_no);
+				}
 
 			} else {
 				return -1;
@@ -291,17 +297,43 @@ int Zenoh_Config::cli(int argc, char *argv[])
 		if (strcmp(argv[1], "add") == 0) {
 			if (strcmp(argv[2], "publisher") == 0) {
 				int instance = 0;
+				const char *options_str = nullptr;
 
 				if (argc == 6) {
+					int parsed_instance;
+
+					if (sscanf(argv[5], "%d", &parsed_instance) == 1 && parsed_instance >= 0) {
+						instance = parsed_instance;
+
+					} else {
+						options_str = argv[5];
+					}
+
+				} else if (argc == 7) {
 					if (sscanf(argv[5], "%d", &instance) != 1 || instance < 0) {
-						printf("Invalid instance %s (must be an integer, 0 for the default instance or a specific instance's index)\n",
-						       argv[5]);
+						printf("Invalid instance %s (must be a non-negative integer)\n", argv[5]);
 						return 0;
 					}
+
+					options_str = argv[6];
+
+				} else if (argc > 7) {
+					printf("Too many arguments\n");
+					return 0;
 				}
 
-				if (AddPubSub(argv[3], argv[4], instance, ZENOH_PUB_CONFIG_PATH) > 0) {
-					printf("Added %s %s to publishers (instance %d)\n", argv[3], argv[4], instance);
+				if (options_str && !parsePublisherOptions(options_str, nullptr)) {
+					return 0;
+				}
+
+				if (AddPubSub(argv[3], argv[4], instance, ZENOH_PUB_CONFIG_PATH, options_str) > 0) {
+					if (options_str) {
+						printf("Added %s %s to publishers (instance %d, options: %s)\n", argv[3], argv[4], instance,
+						       options_str);
+
+					} else {
+						printf("Added %s %s to publishers (instance %d)\n", argv[3], argv[4], instance);
+					}
 
 				} else {
 					printf("Could not add uORB %s:%d -> %s to publishers\n",  argv[3], instance, argv[4]);
@@ -443,8 +475,121 @@ int Zenoh_Config::closePubSubMapping()
 }
 
 
+bool Zenoh_Config::parsePublisherOptions(const char *options_str, z_publisher_options_t *opts)
+{
+	if (options_str == nullptr || options_str[0] == '\0') {
+		return true;
+	}
+
+	char buf[ZENOH_PUB_OPTIONS_SIZE];
+	strncpy(buf, options_str, sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+
+	int len = strlen(buf);
+
+	while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r' || buf[len - 1] == ' ')) {
+		buf[--len] = '\0';
+	}
+
+	bool valid = true;
+	char *saveptr_pair = nullptr;
+	char *pair = strtok_r(buf, ",", &saveptr_pair);
+
+	while (pair != nullptr) {
+		char *eq = strchr(pair, '=');
+
+		if (eq != nullptr) {
+			*eq = '\0';
+			const char *key = pair;
+			const char *val = eq + 1;
+
+			if (strcmp(key, "cc") == 0) {
+				if (strcmp(val, "block") == 0) {
+					if (opts) { opts->congestion_control = Z_CONGESTION_CONTROL_BLOCK; }
+
+				} else if (strcmp(val, "drop") == 0) {
+					if (opts) { opts->congestion_control = Z_CONGESTION_CONTROL_DROP; }
+
+				} else {
+					PX4_WARN("Invalid cc value '%s' (valid: block, drop)", val);
+					valid = false;
+				}
+
+			} else if (strcmp(key, "express") == 0) {
+				if (strcmp(val, "true") == 0) {
+					if (opts) { opts->is_express = true; }
+
+				} else if (strcmp(val, "false") == 0) {
+					if (opts) { opts->is_express = false; }
+
+				} else {
+					PX4_WARN("Invalid express value '%s' (valid: true, false)", val);
+					valid = false;
+				}
+
+			} else if (strcmp(key, "prio") == 0) {
+				if (strcmp(val, "real_time") == 0) {
+					if (opts) { opts->priority = Z_PRIORITY_REAL_TIME; }
+
+				} else if (strcmp(val, "interactive_high") == 0) {
+					if (opts) { opts->priority = Z_PRIORITY_INTERACTIVE_HIGH; }
+
+				} else if (strcmp(val, "interactive_low") == 0) {
+					if (opts) { opts->priority = Z_PRIORITY_INTERACTIVE_LOW; }
+
+				} else if (strcmp(val, "data_high") == 0) {
+					if (opts) { opts->priority = Z_PRIORITY_DATA_HIGH; }
+
+				} else if (strcmp(val, "data") == 0) {
+					if (opts) { opts->priority = Z_PRIORITY_DATA; }
+
+				} else if (strcmp(val, "data_low") == 0) {
+					if (opts) { opts->priority = Z_PRIORITY_DATA_LOW; }
+
+				} else if (strcmp(val, "background") == 0) {
+					if (opts) { opts->priority = Z_PRIORITY_BACKGROUND; }
+
+				} else {
+					PX4_WARN("Invalid prio value '%s' (valid: real_time, interactive_high, interactive_low, data_high, data, data_low, background)",
+						 val);
+					valid = false;
+				}
+
+#ifdef Z_FEATURE_UNSTABLE_API
+
+			} else if (strcmp(key, "rel") == 0) {
+				if (strcmp(val, "reliable") == 0) {
+					if (opts) { opts->reliability = Z_RELIABILITY_RELIABLE; }
+
+				} else if (strcmp(val, "best_effort") == 0) {
+					if (opts) { opts->reliability = Z_RELIABILITY_BEST_EFFORT; }
+
+				} else {
+					PX4_WARN("Invalid rel value '%s' (valid: reliable, best_effort)", val);
+					valid = false;
+				}
+
+#endif
+
+			} else {
+				PX4_WARN("Unknown publisher option key '%s' (valid: cc, express, prio, rel)", key);
+				valid = false;
+			}
+
+		} else {
+			PX4_WARN("Malformed option '%s' (expected key=value)", pair);
+			valid = false;
+		}
+
+		pair = strtok_r(nullptr, ",", &saveptr_pair);
+	}
+
+	return valid;
+}
+
+
 // Very rudamentary here but we've to wait for a more advanced param system
-int Zenoh_Config::getPubSubMapping(char *topic, char *type, int *instance, const char *filename)
+int Zenoh_Config::getPubSubMapping(char *topic, char *type, int *instance, const char *filename, char *options_str)
 {
 	char buffer[MAX_LINE_SIZE];
 
@@ -456,12 +601,12 @@ int Zenoh_Config::getPubSubMapping(char *topic, char *type, int *instance, const
 		while (fgets(buffer, MAX_LINE_SIZE, fp_mapping) != NULL) {
 
 			if (buffer[0] != '\n') {
-				const char *fields[3];
-				int nfields = parse_csv_line(buffer, fields, 3);
+				const char *fields[4];
+				int nfields = parse_csv_line(buffer, fields, 4);
 
 
 				if (nfields >= 2) {
-					if (nfields == 3) {
+					if (nfields >= 3) {
 						if (sscanf(fields[2], "%d", instance) != 1) {
 							PX4_WARN("Malformed zenoh config instance %s (instance field should be an integer following the type)\n", fields[2]);
 							return -1;
@@ -469,6 +614,16 @@ int Zenoh_Config::getPubSubMapping(char *topic, char *type, int *instance, const
 
 					} else {
 						*instance = -1;
+					}
+
+					if (options_str != nullptr) {
+						if (nfields >= 4 && fields[3] != nullptr) {
+							strncpy(options_str, fields[3], ZENOH_PUB_OPTIONS_SIZE - 1);
+							options_str[ZENOH_PUB_OPTIONS_SIZE - 1] = '\0';
+
+						} else {
+							options_str[0] = '\0';
+						}
 					}
 
 					strncpy(type, fields[1], TOPIC_INFO_SIZE);
@@ -517,13 +672,18 @@ void Zenoh_Config::dump_config()
 		char topic[TOPIC_INFO_SIZE];
 		char type[TOPIC_INFO_SIZE];
 		int instance_no;
+		char options_str[ZENOH_PUB_OPTIONS_SIZE];
 
 		printf("Publisher config:\n");
 
-		while (getPubSubMapping(topic, type, &instance_no, ZENOH_PUB_CONFIG_PATH) > 0) {
+		while (getPubSubMapping(topic, type, &instance_no, ZENOH_PUB_CONFIG_PATH, options_str) > 0) {
 			printf("Topic: %s\n", topic);
 			printf("Type: %s\n", type);
 			printf("Instance: %d\n", instance_no);
+
+			if (options_str[0] != '\0') {
+				printf("Options: %s\n", options_str);
+			}
 		}
 
 		printf("\nSubscriber config:\n");

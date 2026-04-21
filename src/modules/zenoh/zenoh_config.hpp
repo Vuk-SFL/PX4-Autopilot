@@ -61,8 +61,9 @@
 #define KEYEXPR_MSG_NAME "px4_msgs::msg::dds_::"
 #define KEYEXPR_MSG_NAME_SIZE sizeof(KEYEXPR_MSG_NAME)
 #define TOPIC_INFO_SIZE (96)
-#define MAX_LINE_SIZE (2 * TOPIC_INFO_SIZE)
-#define KEYEXPR_SIZE (MAX_LINE_SIZE + KEYEXPR_MSG_NAME_SIZE + KEYEXPR_RIHS01_SIZE + 128)
+#define ZENOH_PUB_OPTIONS_SIZE (64)
+#define MAX_LINE_SIZE (2 * TOPIC_INFO_SIZE + ZENOH_PUB_OPTIONS_SIZE + 4)
+#define KEYEXPR_SIZE (2 * TOPIC_INFO_SIZE + KEYEXPR_MSG_NAME_SIZE + KEYEXPR_RIHS01_SIZE + 128)
 
 class Zenoh_Config
 {
@@ -81,9 +82,16 @@ public:
 	{
 		return getLineCount(ZENOH_SUB_CONFIG_PATH);
 	}
-	int getPublisherMapping(char *topic, char *type, int *instance)
+	int getPublisherMapping(char *topic, char *type, int *instance, z_publisher_options_t *opts = nullptr)
 	{
-		return getPubSubMapping(topic, type, instance, ZENOH_PUB_CONFIG_PATH);
+		char options_str[ZENOH_PUB_OPTIONS_SIZE];
+		int ret = getPubSubMapping(topic, type, instance, ZENOH_PUB_CONFIG_PATH, options_str);
+
+		if (ret > 0 && opts != nullptr) {
+			parsePublisherOptions(options_str, opts);
+		}
+
+		return ret;
 	}
 	// existing_instance will be either 0 (should create a new instance) or nonzero (should reuse the existing 0 instance)
 	int getSubscriberMapping(char *topic, char *type, int *existing_instance)
@@ -94,8 +102,10 @@ public:
 
 
 private:
-	int getPubSubMapping(char *topic, char *type, int *new_instance, const char *filename);
-	int AddPubSub(char *topic, char *datatype, int new_instance, const char *filename);
+	bool parsePublisherOptions(const char *options_str, z_publisher_options_t *opts);
+	int getPubSubMapping(char *topic, char *type, int *new_instance, const char *filename, char *options_str = nullptr);
+	int AddPubSub(char *topic, char *datatype, int new_instance, const char *filename,
+		      const char *options_str = nullptr);
 	int DeletePubSub(char *topic, const char *filename);
 	int SetNetworkConfig(char *mode, char *locator);
 	int getLineCount(const char *filename);
