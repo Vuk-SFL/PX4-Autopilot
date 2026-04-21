@@ -98,6 +98,10 @@ Zenoh_Config::~Zenoh_Config()
 int Zenoh_Config::AddPubSub(char *topic, char *datatype, int instance_no, const char *filename,
 			    const char *options_str)
 {
+#ifndef CONFIG_ZENOH_PUB_OPTION_OVERRIDE
+	(void)options_str;
+#endif
+
 	{
 		char f_topic[TOPIC_INFO_SIZE];
 		char f_type[TOPIC_INFO_SIZE];
@@ -121,12 +125,18 @@ int Zenoh_Config::AddPubSub(char *topic, char *datatype, int instance_no, const 
 			FILE *fp = fopen(filename, "a");
 
 			if (fp) {
+#ifdef CONFIG_ZENOH_PUB_OPTION_OVERRIDE
+
 				if (options_str && options_str[0] != '\0') {
 					fprintf(fp, "%s;%s;%d;%s\n", topic, datatype, instance_no, options_str);
 
 				} else {
 					fprintf(fp, "%s;%s;%d\n", topic, datatype, instance_no);
 				}
+
+#else
+				fprintf(fp, "%s;%s;%d\n", topic, datatype, instance_no);
+#endif
 
 			} else {
 				return -1;
@@ -297,6 +307,8 @@ int Zenoh_Config::cli(int argc, char *argv[])
 		if (strcmp(argv[1], "add") == 0) {
 			if (strcmp(argv[2], "publisher") == 0) {
 				int instance = 0;
+
+#ifdef CONFIG_ZENOH_PUB_OPTION_OVERRIDE
 				const char *options_str = nullptr;
 
 				if (argc == 6) {
@@ -338,6 +350,28 @@ int Zenoh_Config::cli(int argc, char *argv[])
 				} else {
 					printf("Could not add uORB %s:%d -> %s to publishers\n",  argv[3], instance, argv[4]);
 				}
+
+#else
+
+				if (argc == 6) {
+					if (sscanf(argv[5], "%d", &instance) != 1 || instance < 0) {
+						printf("Invalid instance %s (must be a non-negative integer)\n", argv[5]);
+						return 0;
+					}
+
+				} else if (argc > 6) {
+					printf("Too many arguments\n");
+					return 0;
+				}
+
+				if (AddPubSub(argv[3], argv[4], instance, ZENOH_PUB_CONFIG_PATH) > 0) {
+					printf("Added %s %s to publishers (instance %d)\n", argv[3], argv[4], instance);
+
+				} else {
+					printf("Could not add uORB %s:%d -> %s to publishers\n",  argv[3], instance, argv[4]);
+				}
+
+#endif
 
 			} else if (strcmp(argv[2], "subscriber") == 0) {
 				int instance = 0;
@@ -475,6 +509,7 @@ int Zenoh_Config::closePubSubMapping()
 }
 
 
+#ifdef CONFIG_ZENOH_PUB_OPTION_OVERRIDE
 bool Zenoh_Config::parsePublisherOptions(const char *options_str, z_publisher_options_t *opts)
 {
 	if (options_str == nullptr || options_str[0] == '\0') {
@@ -586,11 +621,16 @@ bool Zenoh_Config::parsePublisherOptions(const char *options_str, z_publisher_op
 
 	return valid;
 }
+#endif
 
 
 // Very rudamentary here but we've to wait for a more advanced param system
 int Zenoh_Config::getPubSubMapping(char *topic, char *type, int *instance, const char *filename, char *options_str)
 {
+#ifndef CONFIG_ZENOH_PUB_OPTION_OVERRIDE
+	(void)options_str;
+#endif
+
 	char buffer[MAX_LINE_SIZE];
 
 	if (fp_mapping == NULL) {
@@ -601,8 +641,13 @@ int Zenoh_Config::getPubSubMapping(char *topic, char *type, int *instance, const
 		while (fgets(buffer, MAX_LINE_SIZE, fp_mapping) != NULL) {
 
 			if (buffer[0] != '\n') {
+#ifdef CONFIG_ZENOH_PUB_OPTION_OVERRIDE
 				const char *fields[4];
 				int nfields = parse_csv_line(buffer, fields, 4);
+#else
+				const char *fields[3];
+				int nfields = parse_csv_line(buffer, fields, 3);
+#endif
 
 
 				if (nfields >= 2) {
@@ -616,6 +661,8 @@ int Zenoh_Config::getPubSubMapping(char *topic, char *type, int *instance, const
 						*instance = -1;
 					}
 
+#ifdef CONFIG_ZENOH_PUB_OPTION_OVERRIDE
+
 					if (options_str != nullptr) {
 						if (nfields >= 4 && fields[3] != nullptr) {
 							strncpy(options_str, fields[3], ZENOH_PUB_OPTIONS_SIZE - 1);
@@ -625,6 +672,8 @@ int Zenoh_Config::getPubSubMapping(char *topic, char *type, int *instance, const
 							options_str[0] = '\0';
 						}
 					}
+
+#endif
 
 					strncpy(type, fields[1], TOPIC_INFO_SIZE);
 					strncpy(topic, fields[0], TOPIC_INFO_SIZE);
@@ -672,9 +721,15 @@ void Zenoh_Config::dump_config()
 		char topic[TOPIC_INFO_SIZE];
 		char type[TOPIC_INFO_SIZE];
 		int instance_no;
+
+#ifdef CONFIG_ZENOH_PUB_OPTION_OVERRIDE
 		char options_str[ZENOH_PUB_OPTIONS_SIZE];
+#endif
 
 		printf("Publisher config:\n");
+
+
+#ifdef CONFIG_ZENOH_PUB_OPTION_OVERRIDE
 
 		while (getPubSubMapping(topic, type, &instance_no, ZENOH_PUB_CONFIG_PATH, options_str) > 0) {
 			printf("Topic: %s\n", topic);
@@ -685,6 +740,16 @@ void Zenoh_Config::dump_config()
 				printf("Options: %s\n", options_str);
 			}
 		}
+
+#else
+
+		while (getPubSubMapping(topic, type, &instance_no, ZENOH_PUB_CONFIG_PATH) > 0) {
+			printf("Topic: %s\n", topic);
+			printf("Type: %s\n", type);
+			printf("Instance: %d\n", instance_no);
+		}
+
+#endif
 
 		printf("\nSubscriber config:\n");
 
