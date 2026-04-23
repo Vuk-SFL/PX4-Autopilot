@@ -5,10 +5,10 @@ OSDs are commonly used in FPV and long-range flying so the pilot can see live fl
 
 PX4 supports three distinct OSD mechanisms, each targeting a different class of video system:
 
-| Mechanism                               | Use case                                                                                                                        | Transport            | Runs on FC?                                                    |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------- |
-| [MSP OSD](#msp-osd)                     | Digital FPV air units and video goggles that speak Betaflight MSP (e.g. DJI O3/O4, Walksnail, HDZero, Caddx Vista)              | Serial, MSPv1        | Yes — [`msp_osd`](../modules/modules_driver.md#msp-osd) driver |
-| [ATXXXX Analog OSD](#atxxxx-analog-osd) | Legacy analog video with an on-board MAX7456/ATXXXX overlay chip (e.g. OmnibusF4SD)                                             | SPI to on-board chip | Yes — [`atxxxx`](../modules/modules_driver.md#atxxxx) driver   |
+| Mechanism                               | Use case                                                                                                                               | Transport            | Runs on FC?                                                    |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------- |
+| [MSP OSD](#msp-osd)                     | Digital FPV air units and video goggles that speak Betaflight MSP (e.g. DJI O3/O4, Walksnail, HDZero, Caddx Vista)                     | Serial, MSPv1        | Yes — [`msp_osd`](../modules/modules_driver.md#msp-osd) driver |
+| [ATXXXX Analog OSD](#atxxxx-analog-osd) | Legacy analog video with an on-board MAX7456/ATXXXX overlay chip (e.g. OmnibusF4SD)                                                    | SPI to on-board chip | Yes — [`atxxxx`](../modules/modules_driver.md#atxxxx) driver   |
 | [MAVLink OSD](#mavlink-osd)             | MAVLink-aware ground stations and displays that render their own OSD from telemetry (e.g. Yaapu on EdgeTX/OpenTX, Skydroid, mLRS HUDs) | Serial, MAVLink      | No — streams MAVLink; the display renders the OSD              |
 
 Which one you use is determined by your video hardware, not by PX4 preference.
