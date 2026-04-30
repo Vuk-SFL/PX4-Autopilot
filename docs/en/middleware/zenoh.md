@@ -141,13 +141,12 @@ This folder contains three key files:
 
 Zenoh publisher behaviour can be controlled through global PX4 parameters:
 
-- `ZENOH_PUB_CC`: congestion control (`Drop` or `Block`) - controls what happens when the transport path is congested. `Drop` prefers freshness/latency and may drop messages, while `Block` preserves delivery by applying backpressure to the publisher.
-- `ZENOH_PUB_REL`: reliability (`Reliable` or `BestEffort`) - selects the Zenoh reliability mode used by the router path and seen by the underlying ROS 2 `rmw_zenoh` transport.
-- `ZENOH_PUB_EXPR`: express mode (`Disabled` or `Enabled`) - when enabled, Zenoh does not wait to batch this operation with others. This usually reduces latency at the cost of higher bandwidth/overhead.
-- `ZENOH_PUB_PRIO`: priority (`RealTime`, `InteractiveHigh`, `InteractiveLow`, `DataHigh`, `Data`, `DataLow`, `Background`) - sets relative message priority for routing/scheduling under load.
+- [ZENOH_PUB_CC](../advanced_config/parameter_reference.md#ZENOH_PUB_CC): congestion control (`Drop` or `Block`) - controls what happens when the transport path is congested. `Drop` prefers freshness/latency and may drop messages, while `Block` preserves delivery by applying backpressure to the publisher.
+- [ZENOH_PUB_REL](../advanced_config/parameter_reference.md#ZENOH_PUB_REL): reliability (`Reliable` or `BestEffort`) - selects the Zenoh reliability mode used by the router path and seen by the underlying ROS 2 `rmw_zenoh` transport.
+- [ZENOH_PUB_EXPR](../advanced_config/parameter_reference.md#ZENOH_PUB_EXPR): express mode (`Disabled` or `Enabled`) - when enabled, Zenoh does not wait to batch this operation with others. This usually reduces latency at the cost of higher bandwidth/overhead.
+- [ZENOH_PUB_PRIO](../advanced_config/parameter_reference.md#ZENOH_PUB_PRIO): priority (`RealTime`, `InteractiveHigh`, `InteractiveLow`, `DataHigh`, `Data`, `DataLow`, `Background`) - sets relative message priority for routing/scheduling under load.
 
 These are applied to all Zenoh publishers.
-For parameter details, see the [PX4 parameter reference](../advanced_config/parameter_reference.md).
 
 If `CONFIG_ZENOH_PUB_OPTION_OVERRIDE=y`, individual publishers can override one or more global publisher options.
 Default configuration [dds_topics.yaml](../middleware/dds_topics.md) already provides overrides for several publishers.
